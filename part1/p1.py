@@ -6,10 +6,12 @@ from collections import deque, defaultdict
 import random       #used in util
 import networkx as nx       #used in util
 import numpy as np       #used in util
-
+import time         #used in util
 
 class util:
-    
+    """
+    Utility class for testing
+    """
     @staticmethod
     def randA(n, numberOfEdges = -1, minStrength = 0, maxStrength = 1):
         numberOfEdges = numberOfEdges if numberOfEdges > 0 else 2*n
@@ -30,6 +32,10 @@ class util:
         return A
     
     @staticmethod
+    def edgesL(L):
+        return sum([len(i) for i in L])
+
+    @staticmethod
     def randL(n, levels = 5, maxDependencies = 3):
         L = [[] for i in range(n)]
         intervals = np.sort(np.array(random.sample(range(1,n-1), levels)))
@@ -37,23 +43,44 @@ class util:
         for i in range(len(intervals)-1):
             node = intervals[i]
             while(node < intervals[i+1]):
-                numberOfDependencies = random.randint(0,3)
+                numberOfDependencies = random.randint(0,maxDependencies)
                 for j in range(numberOfDependencies):
                     newDependency = random.randint(intervals[i+1], n-1)
                     if not (newDependency in L[node]): L[node].append(newDependency)
                 node += 1
+        np.random.shuffle(L)
         return L
         
+    @staticmethod
+    def timef(f,params=()):
+        start = time.time()
+        f(params)
+        return time.time()-start
 
-def getDay(node, dependecies, outS):
-    if outS[node] >= 0:
-        return outS[node] + 1
-    elif dependecies[node] == []:
-        outS[node] = 0
-        return 1
+def getDay(node, dependencies, out_S):
+    """
+    Finds the day on which node and its dependencies should be scheduled
+    Input:
+    node: id of the node
+    dependencies: a list containing the dependencies of node as integers, if node
+    has no dependencies the list should be empty
+    out_S: a list of the form [node: day], this will be altered during execution
+
+    Output: 1+day on which node should be scheduled
+
+    This function calls itself recursively to figure out the day on which the 
+    dependencies should be scheduled, it then takes a maximum of the outputs 
+    which gives the day on which the task node should be scheduled. The recursion
+    terminate as we are assuming that no two tasks depend on each other and that
+    there are finitely many tasks.
+    """
+    if out_S[node] >= 0:
+        return out_S[node] + 1
     else:
-        day = max([getDay(i,dependecies, outS) for i in dependecies[node]])
-        outS[node] = day
+        day = 0
+        for i in dependencies[node]:
+            day = max(day, getDay(i,dependencies, out_S))
+        out_S[node] = day
         return day + 1
 
 def scheduler(L):
@@ -71,7 +98,16 @@ def scheduler(L):
     the day on which task i should be carried out. Days are numbered starting
     from 0.
 
-    Discussion: Add analysis here
+    Discussion: The main code lays in the function getDay (see documentation 
+    above) which is executed for every node. The function finds the day that the 
+    i-th task and its dependencies (and the dependencies of the dependencies and 
+    so on) should be completed. Each edge is accessed once and for every node we
+    have to take the maximum over every neighbour, which is an O(q) operation (q
+    is the degree of the node). We also have to visit every node so in total the 
+    number of operations is O(N+M) where N is the number of nodes and M the number
+    of edges. This asymptotical speed is about as good as can be expected without
+    knowing anything about the structure of the dependencies, as each node and edge
+    has to be visited at least once.
     """
     n = len(L)
     S = [-1] * n
@@ -105,10 +141,21 @@ def findPath(A,a0,amin,J1,J2):
     Output:
     L: A list of integers corresponding to a feasible path from J1 to J2.
 
-    Discussion: Add analysis here
+    Discussion: This is a straightforward application of a breadth-first search.
+    The only difference is that we must discard edges whose weight is not sufficient
+    to transmit the signal, but in the worst case scenario (where every edge is
+    visited) this is an O(M) operation (M is the number of edges, N the number of
+    nodes). So we can repeat the analysis from lectures to get an O(M+N) total
+    running time. (A normal breadth-first search would simply remove the first 
+    condition in the first if-statement). Constructing the path is an O(d) operation
+    where d is the length of the path found between the two nodes. As d is at most
+    M (in practice d<<M) we again remain at O(M+N) for the total execution time.
+
+    Breadth-first was chosen over depth-first as the path found by it is the one
+    that requires the least number of steps, which is usually a desirable property.
     """
     class Found(Exception): pass
-    previousNode = {}
+    previousNode = {}   #the n-th entry contains the node visited before reaching the n-th node
     minRetain = amin / a0
     Q = deque((J1,))
     previousNode[J1]=J1
@@ -118,18 +165,18 @@ def findPath(A,a0,amin,J1,J2):
             currNode = Q.popleft()
             for neighbourNode,retain in A[currNode]: #iterate through neighbours of n
                 if (retain > minRetain) and not (neighbourNode in previousNode):
-                    previousNode[neighbourNode] = currNode
+                    previousNode[neighbourNode] = currNode  
                     if neighbourNode == J2:
                         raise Found         #exception used to break double loop
                     Q.append(neighbourNode)
-    except IndexError:      #raised by deque.popLeft if the deque is empty
+    except IndexError:      #raised by deque.popLeft if the deque is empty, ie when there is no path
         return []
-    except Found:
+    except Found:   #raised when a path has been found
         L=deque((J2,))
-        while L[0] != J1:
+        while L[0] != J1:       #traverse the path backwards
             L.appendleft(previousNode[L[0]])
         return list(L)
-    raise RuntimeError      #If reached something has gone wrong
+    raise RuntimeError      #If reached something has gone wrong 
 
 
 def a0min(A,amin,J1,J2):
@@ -159,7 +206,16 @@ def a0min(A,amin,J1,J2):
     a0=a0min
     If no feasible path exists for any a0, return output as shown below.
 
-    Discussion: Add analysis here
+    Discussion: this algorithm is a straightforward application of Dijkstra's 
+    algorithm where the normal path length of sum(w_ij) is substituted by min(w_ij).
+    As this function is monotone, the algorithm will still give the correct answer.
+    This has been implemented using a dictionary giving an execution time of 
+    O(M+N^2) (M number of edges, N number of nodes), as M < N(N-1) which is O(N^2)
+    we can simplify this to O(N^2). Instead of a dictionary we could use a binary 
+    heap to get better performance. In this case we would have O((M+N)logN) 
+    operations as seen in class. This is faster as long as M is at most O(N^2/logN)
+    which is the case in many applications with large networks (as it is unfeasible 
+    to have a direct connection between any two points in a graph).
     """
     previousNode = {}
     visited = set()
@@ -175,7 +231,6 @@ def a0min(A,amin,J1,J2):
         if nodeToExplore == J2:
             break
         unexploredNodes.pop(nodeToExplore)      #by having this after break statement the value is preserved for the last node
-
 
         for neighbour, retain in A[nodeToExplore]:
             retain = min(maxRetain, retain)
