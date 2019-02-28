@@ -108,6 +108,9 @@ def scheduler(L):
     of edges. This asymptotical speed is about as good as can be expected without
     knowing anything about the structure of the dependencies, as each node and edge
     has to be visited at least once.
+    Note that this algorithm doesn't need L[i] to include dependencies of dependencies
+    (it is actually slowed down by it). Which could potentially save time in pre-
+    computation.
     """
     n = len(L)
     S = [-1] * n

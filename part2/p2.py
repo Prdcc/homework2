@@ -368,14 +368,12 @@ def diffusion(input=(None)):
     print("")
     """
     percentiles = [0,75,99]
-    #plotComprehensive(percentiles,Nt,tf,theta0,0.01,m)
+    plotComprehensive(percentiles,Nt,tf,theta0,0.01,m)
     plotComprehensive(percentiles,Nt,tf,theta0,0.1,m)
 
     return None #modify as needed
 
 
 if __name__=='__main__':
-    #add code here to call diffusion and generate figures equivalent
-    #to those you are submitting
-    G=None #modify as needed
     sns.set()
+    diffusion()
