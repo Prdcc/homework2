@@ -3,7 +3,7 @@ Enrico Ancilotto
 01210716
 """
 from collections import deque, defaultdict
-import random       #used in util
+import random       #used in util which is only a testing class, not part of any algorithm
 import networkx as nx       #used in util
 import numpy as np       #used in util
 import time         #used in util
@@ -27,8 +27,8 @@ class util:
                     found = True
             if not found:
                 strength = random.uniform(minStrength, maxStrength)
-                A[startNode].append([endNode, strength])
-                A[endNode].append([startNode, strength])
+                A[startNode].append((endNode, strength))
+                A[endNode].append((startNode, strength))
         return A
     
     @staticmethod
@@ -48,7 +48,7 @@ class util:
                     newDependency = random.randint(intervals[i+1], n-1)
                     if not (newDependency in L[node]): L[node].append(newDependency)
                 node += 1
-        np.random.shuffle(L)
+        #np.random.shuffle(L)
         return L
         
     @staticmethod
@@ -58,30 +58,30 @@ class util:
         return time.time()-start
 
 def getDay(node, dependencies, out_S):
-    """
-    Finds the day on which node and its dependencies should be scheduled
-    Input:
-    node: id of the node
-    dependencies: a list containing the dependencies of node as integers, if node
-    has no dependencies the list should be empty
-    out_S: a list of the form [node: day], this will be altered during execution
+        """
+        Finds the day on which node and its dependencies should be scheduled
+        Input:
+        node: id of the node
+        dependencies: a list containing the dependencies of the network
+        out_S: a list of the form [node: day], this will be altered during execution
 
-    Output: 1+day on which node should be scheduled
+        Output: 1+day on which node should be scheduled
 
-    This function calls itself recursively to figure out the day on which the 
-    dependencies should be scheduled, it then takes a maximum of the outputs 
-    which gives the day on which the task node should be scheduled. The recursion
-    terminate as we are assuming that no two tasks depend on each other and that
-    there are finitely many tasks.
-    """
-    if out_S[node] >= 0:
-        return out_S[node] + 1
-    else:
-        day = 0
-        for i in dependencies[node]:
-            day = max(day, getDay(i,dependencies, out_S))
-        out_S[node] = day
-        return day + 1
+        This function calls itself recursively to figure out the day on which the 
+        dependencies should be scheduled, it then takes a maximum of the outputs 
+        which gives the day on which the task node should be scheduled. The recursion
+        terminate as we are assuming that no two tasks depend on each other and that
+        there are finitely many tasks.
+        """
+        if out_S[node] >= 0:    #if the day has already be found simply return it
+            return out_S[node] + 1
+        else:
+            day = 0
+            for i in dependencies[node]:        #iterate over dependencies of the node
+                day = max(day, getDay(i,dependencies, out_S))
+            out_S[node] = day       #set day on which task should be scheduled
+            return day + 1
+
 
 def scheduler(L):
     """
@@ -99,12 +99,12 @@ def scheduler(L):
     from 0.
 
     Discussion: The main code lays in the function getDay (see documentation 
-    above) which is executed for every node. The function finds the day that the 
+    below) which is executed for every node. The function finds the day that the 
     i-th task and its dependencies (and the dependencies of the dependencies and 
-    so on) should be completed. Each edge is accessed once and for every node we
+    so on) should be completed. Each edge (dependency) is accessed once and for every node we
     have to take the maximum over every neighbour, which is an O(q) operation (q
-    is the degree of the node). We also have to visit every node so in total the 
-    number of operations is O(N+M) where N is the number of nodes and M the number
+    is the degree of the node ie the number of dependencies). We also have to visit every node so in total the 
+    number of operations is O(N+E) where N is the number of nodes and E the number
     of edges. This asymptotical speed is about as good as can be expected without
     knowing anything about the structure of the dependencies, as each node and edge
     has to be visited at least once.
@@ -112,13 +112,12 @@ def scheduler(L):
     (it is actually slowed down by it). Which could potentially save time in pre-
     computation.
     """
+
     n = len(L)
     S = [-1] * n
-    for node in range(n):
+    for node in range(n):   #iterate over all nodes
         getDay(node, L, S)
     return S
-
-
 
 
 def findPath(A,a0,amin,J1,J2):
@@ -152,7 +151,7 @@ def findPath(A,a0,amin,J1,J2):
     running time. (A normal breadth-first search would simply remove the first 
     condition in the first if-statement). Constructing the path is an O(d) operation
     where d is the length of the path found between the two nodes. As d is at most
-    M (in practice d<<M) we again remain at O(M+N) for the total execution time.
+    N (in practice d<<N) we again remain at O(M+N) for the total execution time.
 
     Breadth-first was chosen over depth-first as the path found by it is the one
     that requires the least number of steps, which is usually a desirable property.
@@ -165,7 +164,7 @@ def findPath(A,a0,amin,J1,J2):
 
     try:
         while(True):    #exit conditions managed by exceptions
-            currNode = Q.popleft()
+            currNode = Q.popleft()  #raises exception if Q is empty which will break the loop
             for neighbourNode,retain in A[currNode]: #iterate through neighbours of n
                 if (retain > minRetain) and not (neighbourNode in previousNode):
                     previousNode[neighbourNode] = currNode  
@@ -222,20 +221,21 @@ def a0min(A,amin,J1,J2):
     """
     previousNode = {}
     visited = set()
-    unexploredNodes = defaultdict(lambda: -1)       #dictionary with default value -1
+    unexploredNodes = defaultdict(lambda: -1)       #dictionary with default value -1, will contain the temporary cost estimate for unexplored nodes
     unexploredNodes[J1] = 1
-    while len(unexploredNodes) > 0:
+
+    while len(unexploredNodes) > 0:     #implementation of Dijkstra's algorithm 
         maxRetain = -1
-        for node, tempMax in unexploredNodes.items():
+        for node, tempMax in unexploredNodes.items():   #find minimum
             if tempMax > maxRetain:
                 maxRetain = tempMax
                 nodeToExplore = node
-        visited.add(nodeToExplore)
-        if nodeToExplore == J2:
-            break
+        visited.add(nodeToExplore) 
+        if nodeToExplore == J2:         #if we have reached the target we can break the loop
+            break   
         unexploredNodes.pop(nodeToExplore)      #by having this after break statement the value is preserved for the last node
 
-        for neighbour, retain in A[nodeToExplore]:
+        for neighbour, retain in A[nodeToExplore]:      
             retain = min(maxRetain, retain)
             if not(neighbour in visited) and (retain > unexploredNodes[neighbour]):
                 unexploredNodes[neighbour] = retain
@@ -243,7 +243,7 @@ def a0min(A,amin,J1,J2):
         
     if(J2 in visited):
         L=deque((J2,))
-        while L[0] != J1:
+        while L[0] != J1:       #reconstruct the path backwards
             L.appendleft(previousNode[L[0]])
         a0min = amin/unexploredNodes[J2]
         return a0min, list(L)

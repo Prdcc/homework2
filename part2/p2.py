@@ -10,6 +10,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 class util:
+    """
+    Used only for testing the code
+    """
     @staticmethod
     def getG():
         G=nx.barabasi_albert_graph(100,5)
@@ -54,12 +57,12 @@ def model1(G,x=0,params=(50,80,105,71,1,0),tf=6,Nt=400,display=False):
     S = 0.05
     V = 0.1
     I = 0.05
-    y0=np.array((S,I,V))
+    y0=np.array((S,I,V))    #starting conditions
 
-    B = np.array([[-g-k, a, 0], [0, -k-a, 0], [0, 0, -k]], dtype = float)
+    B = np.array([[-g-k, a, 0], [0, -k-a, 0], [0, 0, -k]], dtype = float)   #linear terms of ODE system
     v=np.array([0.0,0.0,0.0])
 
-    def RHS(y,t):
+    def RHS(y,t):   #compute the value of dy/dt
         theta = theta0 + theta1*(1.0 - np.sin(2*np.pi*t))
         thetaSV = theta*y[2]*y[0]
         v[2] = k - thetaSV
@@ -73,10 +76,19 @@ def model1(G,x=0,params=(50,80,105,71,1,0),tf=6,Nt=400,display=False):
     I = y[:,1]
     if display:
         plt.plot(tarray, S)
+        plt.title("Enrico Ancilotto - Created by model1\nValue of S against time")
+        plt.ylabel("S")
+        plt.xlabel("Time")
         plt.show()
     return S
 
 def getB(A, params):
+    """
+    Returns the matrix used for computing the value of the RHS of the ODE.
+    Input:
+    A is the adjacency matrix
+    params is a tuple containing the parameters for the ODE. Same order as in modelN
+    """
     a,theta0,theta1,g,k,tau=params
     n = A.shape[0]
     doublen = 2*n
@@ -94,9 +106,11 @@ def getB(A, params):
         for i in range(n):
             F[i,j] = scaling * q[i]*A[i,j]
     del A   #no longer needed
+
     B = sp.block_diag((F,F,F), format="lil")
-    #del F
+    del F
     del q
+
     #The tau term is given by sum F_ji = tau
     B.setdiag(np.concatenate((np.zeros(n)-tau-g-k, np.zeros(n)-tau-k-a, np.zeros(n)-tau-k),axis=None))
     B.setdiag([a]*n, n)
@@ -123,14 +137,13 @@ def modelN(G,x=0,params=(50,80,105,71,1,0.01),tf=6,Nt=400,display=False):
     a,theta0,theta1,g,k,tau=params
     tarray = np.linspace(0,tf,Nt+1)
 
-    #Add code here
     A = nx.to_scipy_sparse_matrix(G,dtype=float)
     n = A.shape[0]
     doublen = 2*n
     doublepi = 2*np.pi
 
     B = getB(A, params)
-    global dy   #broadcast dy and thetaSV
+    global dy   #broadcast dy and thetaSV to RHS
     global thetaSV
     dy = np.zeros(3*n)
     thetaSV = np.zeros(n)
@@ -156,19 +169,25 @@ def modelN(G,x=0,params=(50,80,105,71,1,0.01),tf=6,Nt=400,display=False):
         it requires, so 1 multiplication and 1 addition for each non-zero entry
         of B. We have 3n elements on the main diagonal, and another n terms given
         by alpha*I in the expression for dS/dt. We then have two entries for every
-        edge given by the adjacency matrix. Potentially this could be an O(n^2) term,
-        but more likely (eg in Barabasi-Albert graphs) it will be O(n), let's assume
-        it is kn. This gives us an estimate of:
-        (6+k)n multiplications
-        (7+k)n additions
+        edge given by the adjacency matrix which are repeated three times each. 
+        Potentially this could be an O(n^2) term, but more likely (eg in Barabasi-
+        Albert graphs) it will be O(n), let's assume the number of edges is kn. 
+        This gives us an estimate of:
+        (6+6k)n multiplications
+        (7+6k)n additions
         As Python is an interpreted language, it requires expensive type-checks 
         however the code is vectorised giving us only a few of those per function-call
         so we can disregard them. There is also the time needed for the various
         memory accesses which is a lot harder to estimate and depends on the 
         exact implementation of the various functions, but it can hardly be more 
         than three per arithmetic operation (2 operands to be called and saving 
-        the result). Giving us a further 3(13+2k)n operations.
-        The total is then in the order of 4(13+2k)n operations
+        the result). Giving us a further 3(13+12k)n operations.
+        The total is then in the order of 4(13+12k)n operations
+
+        If we are only interested in the operations necessary to calculate dS/dt, we
+        have 2n non-zero elements given by the main diagonal and the aI term, plus
+        2kn additional entries given by the adjacency matrix. If we also count the
+        memory accesses the total number of operations is about 4(2+2k)n=8n+8kn.
         """
         global dy       #using pre-allocation from before
         global thetaSV
@@ -192,8 +211,14 @@ def modelN(G,x=0,params=(50,80,105,71,1,0.01),tf=6,Nt=400,display=False):
 
     if display:
         plt.plot(tarray,Smean)
+        plt.title("Enrico Ancilotto - Created by modelN\nAverag value of S against time")
+        plt.ylabel("Average")
+        plt.xlabel("Time")
         plt.show()
         plt.plot(tarray, Svar)
+        plt.title("Enrico Ancilotto - Created by modelN\nVariance of S against time")
+        plt.ylabel("Variance")
+        plt.xlabel("Time")
         plt.show()
     return Smean,Svar
 
@@ -206,6 +231,10 @@ def getInfected(I,tolerance=1e-10):
     return infectedCount
 
 def modelNQ3(G,x=0,theta0=80,tau=0.01,tf=6,Nt=400):
+    """
+    Like modelN but assumes most of the params are zero and returns the entire
+    solution rather than just the mean of S.
+    """
     A = nx.to_scipy_sparse_matrix(G,dtype=float)
     n = A.shape[0]
     doublen = 2*n
@@ -237,6 +266,9 @@ def modelNQ3(G,x=0,theta0=80,tau=0.01,tf=6,Nt=400):
     return y
 
 def linearDiffusion(G,x=0,tau=0.01,tf=6,Nt=400):
+    """
+    Returns the values of SIV for the linear diffusion model
+    """
     A = nx.to_scipy_sparse_matrix(G,dtype=float)
     n = A.shape[0]
     doublen = 2*n
@@ -255,8 +287,8 @@ def linearDiffusion(G,x=0,tau=0.01,tf=6,Nt=400):
 
     y = odeint(lambda y,t: B@y, y0, tarray)
     yComplete = np.zeros((Nt+1,3*n))
-    yComplete[:,:n] = y[:,:n]
-    yComplete[:,n:] = y       #will get same solution for S and I, no need to compute twice
+    yComplete[:,:n] = y[:,:n]        #will get same solution for S and I, no need to compute twice
+    yComplete[:,n:] = y      
     return yComplete
 
 def linearDiffusionExact(G,x=0,tau=0.01,tf=6,Nt=400):
@@ -284,7 +316,7 @@ def linearDiffusionExact(G,x=0,tau=0.01,tf=6,Nt=400):
     yComplete[:,2*n:] = V
     return yComplete
 
-def plotMean(data, tarray, thetas, tau):
+def plotMean(data, tarray, thetas, tau,saveNumber):
     Imean, Vmean = data
     f,axes = plt.subplots(2,3,sharex=True,sharey=True)
     axes = axes.flatten()
@@ -299,9 +331,13 @@ def plotMean(data, tarray, thetas, tau):
         ax.set(xlabel='Time')
     for ax in axes:
         ax.label_outer()
+    plt.savefig("fig"+str(saveNumber)+".png", bbox_inches='tight')
     plt.show()
 
 def getData(percentile,Nt,tf,theta0,tau,m):
+    """
+    get data for plotComprehensive and plotSickLong
+    """
     n=100
     SvarLinear = np.zeros(Nt+1)
     SvarNormal = np.zeros(Nt+1)
@@ -325,6 +361,8 @@ def getData(percentile,Nt,tf,theta0,tau,m):
         SvarLinear += yLinear[:,:n].var(axis = 1)
         SvarNormal += yModelN[:,:n].var(axis = 1)
         print(i+1,"/",m,"  ",end="\r")
+
+    
     SvarLinear /= m
     SvarNormal /= m
     infectedAverage /= m
@@ -334,7 +372,7 @@ def getData(percentile,Nt,tf,theta0,tau,m):
 
     return SvarNormal, infectedAverage, sickAverage, SvarLinear, infectedLinear, sickLinear
 
-def plotComprehensive(percentiles,Nt,tf,theta0,tau,m):
+def plotComprehensive(percentiles,Nt,tf,theta0,tau,m,saveNumber):
     data = []
     tarray = np.linspace(0,tf,Nt+1)
     for percentile in percentiles:
@@ -357,9 +395,10 @@ def plotComprehensive(percentiles,Nt,tf,theta0,tau,m):
             ax.set(xlabel='Time',ylabel=ylabels[i])
         for ax in axes.flat:
             ax.label_outer()
+        plt.savefig("fig"+str(saveNumber+i)+".png", bbox_inches='tight')
         plt.show()
 
-def plotSickLong(percentiles,Nt,tf,theta0,tau,m):
+def plotSickLong(percentiles,Nt,tf,theta0,tau,m,saveNumber):
     data = []
     tarray = np.linspace(0,tf,Nt+1)
     for percentile in percentiles:
@@ -377,6 +416,7 @@ def plotSickLong(percentiles,Nt,tf,theta0,tau,m):
         ax.set(xlabel='Time',ylabel="Number")
     for ax in axes.flat:
         ax.label_outer()
+    plt.savefig("fig"+str(saveNumber)+".png", bbox_inches='tight')
     plt.show()
 
 def diffusion(input=(None)):
@@ -386,11 +426,11 @@ def diffusion(input=(None)):
     Modify input and output as needed.
 
     Discussion: The first two figures show how changing parameters affects the evolution
-    of the simplified model. Tau only compresses the x-axis so we can fix it and keep
-    it constant. Theta0 determines how quickly vulnerable cells become infected. If
+    of the simplified model. Tau almost only compresses the x-axis so we can fix it 
+    from now on. Theta0 determines how quickly vulnerable cells become infected. If
     it is zero then the total amount of infected and vulnerable cells remains
     constant and so will their average. Otherwise the vulnerable cells become infected 
-    at a faster rate as theta0 is increased, until 100% of the cells become infected.
+    at a faster rate as theta0 is increased.
     It is interesting to note that at first the infection rate is slower as the 
     infection spreads through the network, when the infection has reached every 
     node it starts growing much faster, until it burns through the vulnerable cells
@@ -413,7 +453,8 @@ def diffusion(input=(None)):
     a slower pace. The variance of the linear diffusion model decreases much faster
     and asymptotically reaches zero, while in the simple model we don't approach 
     zero: eventually 100% of the cells will be infected but they will cluster on
-    the nodes with highest degree.
+    the nodes with highest degree giving a slight variance, the exact value of which
+    depends on the exact structure of the graph.
 
     In figure 4 we get a better idea of how the infection spreads: there are three
     points at which the infection plateaus: call them A, B, and C. A corresponds 
@@ -431,10 +472,10 @@ def diffusion(input=(None)):
     better idea of what B represents: it seems to be the number of neighbours
     of neighbours of the starting node. The infection spreads to the first ring 
     of neighbours, before stopping until it has grown enough to spread to the 
-    second ring and then repeating the process between B and C.
+    second ring and then repeating the process between B and C. 
 
-    Figures 6 through 8 cover the case where theta0=0. The timescale is increased
-    but otherwise the linear model will behave in the exact same way. In figure 
+    Figures 6 through 9 cover the case where theta0=0. The timescale is increased
+    but otherwise the graph of the linear model will be the same. In figure 
     6 we again see the variability approaching a small but non-zero number for the
     simple model as the small starting number of infected cells is spread between 
     the nodes. Figure 7 also shows a similar behaviour as before, albeit at a much
@@ -455,7 +496,7 @@ def diffusion(input=(None)):
     Nt=2000
     tf=30
     tarray = np.linspace(0,tf,Nt+1)
-    """
+
     thetas = [0, 10, 40, 80, 200, 2000]
     def getMeans(tau):
         Imean = np.zeros((len(thetas),Nt+1))
@@ -476,15 +517,15 @@ def diffusion(input=(None)):
         Vmean /= m
         return Imean, Vmean
 
-    plotMean(getMeans(0.1),tarray,thetas,0.1)
-    plotMean(getMeans(0.01),tarray,thetas,0.01)
+    plotMean(getMeans(0.1),tarray,thetas,0.1,saveNumber=1)
+    plotMean(getMeans(0.01),tarray,thetas,0.01,saveNumber=2)
 
     print("")
-    """
+
     percentiles = [0,75,99]
-    #plotComprehensive(percentiles,Nt,30,80,0.01,m)
-    #plotComprehensive(percentiles,Nt,200,0,0.01,m)
-    plotSickLong(percentiles,Nt,1000,0,0.01,m)
+    plotComprehensive(percentiles,Nt,30,80,0.01,m,saveNumber=3)
+    plotComprehensive(percentiles,Nt,200,0,0.01,m,saveNumber=6)
+    plotSickLong(percentiles,Nt,1000,0,0.01,m,saveNumber=9)
     return None #modify as needed
 
 
